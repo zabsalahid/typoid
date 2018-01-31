@@ -44,7 +44,7 @@ namespace typoid
                 if (frm.ShowDialog() == DialogResult.OK)
                 {
                     process = (Process)frm.Tag;
-                    lblProcess.Text = process.ProcessName;
+                    lblProcess.Text = string.Format(@"{0}: {1}", process.ProcessName, process.MainWindowTitle);
                 }
             }
         }

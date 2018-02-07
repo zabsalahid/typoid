@@ -31,6 +31,7 @@ namespace typoid
         private Thread commandProcessor = null;
         private Thread commandBuilder = null;
         private Random rnd = new Random();
+        private static DateTime defaultDate = new DateTime();
 
         public frmMain()
         {
@@ -70,9 +71,6 @@ namespace typoid
             }
         }
 
-        private void QueueProcessor()
-        { }
-
         private void btnSave_Click(object sender, EventArgs e)
         {
             if (currentCommand == null)
@@ -80,12 +78,18 @@ namespace typoid
                 currentCommand = new Command();
                 currentCommand.id = 0;
                 currentCommand.name = txtName.Text;
-                currentCommand.message = rtbMessage.Text;
-                if (currentCommand.message[currentCommand.message.Length - 1] != '\n')
+                currentCommand.message = @rtbMessage.Text;
+                if (currentCommand.message.Length > 0 && currentCommand.message[currentCommand.message.Length - 1] != '\n')
                     currentCommand.message += '\n';
                 long interval = 0;
                 long.TryParse(txtInterval.Text, out interval);
                 currentCommand.interval = interval;
+                long threshold = 0;
+                long.TryParse(txtThreshold.Text, out threshold);
+                currentCommand.threshold = threshold;
+                long break_minutes = 0;
+                long.TryParse(txtBreakMinutes.Text, out break_minutes);
+                currentCommand.break_minutes = break_minutes;
                 currentCommand.random_skip = Convert.ToInt64(chkRandomSkip.Checked);
                 currentCommand.random_double = Convert.ToInt64(chkRandomDouble.Checked);
             }
@@ -93,11 +97,17 @@ namespace typoid
             {
                 currentCommand.name = txtName.Text;
                 currentCommand.message = rtbMessage.Text;
-                if (currentCommand.message[currentCommand.message.Length - 1] != '\n')
+                if (currentCommand.message.Length > 0 && currentCommand.message[currentCommand.message.Length - 1] != '\n')
                     currentCommand.message += '\n';
                 long interval = 0;
                 long.TryParse(txtInterval.Text, out interval);
                 currentCommand.interval = interval;
+                long threshold = 0;
+                long.TryParse(txtThreshold.Text, out threshold);
+                currentCommand.threshold = threshold;
+                long break_minutes = 0;
+                long.TryParse(txtBreakMinutes.Text, out break_minutes);
+                currentCommand.break_minutes = break_minutes;
                 currentCommand.random_skip = Convert.ToInt64(chkRandomSkip.Checked);
                 currentCommand.random_double = Convert.ToInt64(chkRandomDouble.Checked);
             }
@@ -124,6 +134,7 @@ namespace typoid
         private void frmMain_Load(object sender, EventArgs e)
         {
             BuildConnectionString();
+            updateCurrentSelection();
         }
 
         public void BuildConnectionString()
@@ -137,11 +148,11 @@ namespace typoid
 
         public void PopulateCommands()
         {
-            
+
             if (commands != null)
             {
                 var get = commandFunctions.GetCommands();
-                get.ForEach(a => 
+                get.ForEach(a =>
                 {
                     var targetCmd = commands.FirstOrDefault(b => b.id == a.id);
                     if (targetCmd != null)
@@ -152,6 +163,7 @@ namespace typoid
                     }
                     else
                     {
+                        a.isEnabled = true;
                         commands.Add(a);
                     }
                 });
@@ -190,13 +202,17 @@ namespace typoid
                 rtbMessage.Text = currentCommand.message;
                 chkRandomSkip.Checked = Convert.ToBoolean(currentCommand.random_skip);
                 chkRandomDouble.Checked = Convert.ToBoolean(currentCommand.random_double);
+                txtThreshold.Text = currentCommand.threshold.ToString();
+                txtBreakMinutes.Text = currentCommand.break_minutes.ToString();
             }
             else
             {
                 btnDelete.Enabled = false;
                 txtName.Text = "";
-                txtInterval.Text = "";
                 rtbMessage.Text = "";
+                txtInterval.Text = "0";
+                txtThreshold.Text = "0";
+                txtBreakMinutes.Text = "0";
                 chkRandomSkip.Checked = false;
                 chkRandomDouble.Checked = false;
             }
@@ -232,12 +248,30 @@ namespace typoid
                             {
                                 SetForegroundWindow(process.MainWindowHandle);
                                 process.WaitForInputIdle();
-                                List<Key> keys = cmd.message.Select(c => new Key(c)).ToList();
-                                foreach (var key in keys)
+
+                                //List<Key> keys = cmd.message.Select(c => new Key(c)).ToList();
+                                //foreach (var key in keys)
+                                //{
+                                //    key.PressForeground(process.MainWindowHandle);
+                                //}
+                                Thread thread = new Thread(() =>
                                 {
-                                    key.PressForeground(process.MainWindowHandle);
-                                }
-                                commandsToProcess.Remove(cmd);
+                                    var text = cmd.message.Substring(0, cmd.message.Length - 1);
+                                    var texts = text.Split('\n');
+                                    foreach (var txt in texts)
+                                    {
+                                        Clipboard.SetText(txt);
+                                        SendKeys.SendWait("^{v}");
+                                        Thread.Sleep(1000);
+                                        Key key = new Key('\n');
+                                        key.PressForeground(process.MainWindowHandle);
+                                        Thread.Sleep(200);
+                                    }
+                                    commandsToProcess.Remove(cmd);
+                                });
+                                thread.SetApartmentState(ApartmentState.STA);
+                                thread.Start();
+                                thread.Join();
                             }
                         }
                     }
@@ -257,23 +291,31 @@ namespace typoid
                 {
                     commands.ForEach(a =>
                     {
-                        if (!a.isStarted)
+                        if (a.isEnabled)
                         {
-                            var targetCmd = commandsToProcess.Find(b => b.id == a.id);
-                            if (targetCmd != null)
+                            if (!a.isStarted)
                             {
-                                a.isStarted = targetCmd.isStarted;
-                                a.message = targetCmd.message;
-                                a.interval = targetCmd.interval;
-                                a.process = targetCmd.process;
-                                a.random_skip = targetCmd.random_skip;
-                                a.random_double = targetCmd.random_double;
-                            }
-                            else
-                            {
-                                a.isStarted = true;
-                                a.process = new Thread(() => CommandSend(a));
-                                a.process.Start();
+                                var targetCmd = commandsToProcess.Find(b => b.id == a.id);
+                                if (targetCmd != null)
+                                {
+                                    a.isStarted = targetCmd.isStarted;
+                                    a.message = targetCmd.message;
+                                    a.interval = targetCmd.interval;
+                                    a.process = targetCmd.process;
+                                    a.random_skip = targetCmd.random_skip;
+                                    a.random_double = targetCmd.random_double;
+                                    a.threshold = targetCmd.threshold;
+                                    a.break_minutes = targetCmd.break_minutes;
+                                    a.onBreak = targetCmd.onBreak;
+                                    a.lastBreak = targetCmd.lastBreak;
+                                }
+                                else
+                                {
+                                    a.isStarted = true;
+                                    a.lastBreak = defaultDate;
+                                    a.process = new Thread(() => CommandSend(a));
+                                    a.process.Start();
+                                }
                             }
                         }
                     });
@@ -287,6 +329,16 @@ namespace typoid
 
         private void CommandSend(Command cmd)
         {
+            try
+            {
+                if (!commands.ToList().Any(i => i.id == cmd.id) || !cmd.isEnabled)
+                {
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+            }
             if (isProcessing && !this.IsDisposed && process != null)
             {
                 var targetCmd = commandsToProcess.Find(b => b.id == cmd.id);
@@ -297,33 +349,76 @@ namespace typoid
                     cmd.interval = targetCmd.interval;
                     cmd.random_skip = targetCmd.random_skip;
                     cmd.random_double = targetCmd.random_double;
+                    cmd.threshold = targetCmd.threshold;
+                    cmd.break_minutes = targetCmd.break_minutes;
+                    cmd.onBreak = targetCmd.onBreak;
+                    cmd.lastBreak = targetCmd.lastBreak;
                 }
-                long interval = (cmd.interval + rnd.Next(1, 10)) * 1000;
-                if (Convert.ToBoolean(cmd.random_skip) && Convert.ToBoolean(rnd.Next(0, 2)))
+                long interval = (cmd.interval + (!cmd.onBreak ? rnd.Next(0, Convert.ToInt32(cmd.threshold + 1)) : 0)) * 1000;
+                if (!cmd.onBreak || cmd.break_minutes <= 0)
                 {
-                    interval = cmd.interval * 1000;
-                    SetText(string.Format("Skipped: {0}\nNext interval: {1} seconds", cmd.name, interval / 1000));
+                    if (cmd.break_minutes > 0)
+                    {
+                        if (cmd.lastBreak == defaultDate)
+                            cmd.lastBreak = DateTime.Now;
+                        if (DateTime.Now.Subtract(cmd.lastBreak).TotalMinutes >= cmd.break_minutes)
+                        {
+                            cmd.lastBreak = DateTime.Now;
+                            cmd.onBreak = true;
+                            SetText(string.Format("Start Break: {0}", cmd.name));
+                            if (isProcessing && !this.IsDisposed && process != null)
+                            {
+                                Thread.Sleep(Convert.ToInt32(interval));
+                                CommandSend(cmd);
+                            }
+                            return;
+                        }
+                    }
+
+                    if (Convert.ToBoolean(cmd.random_skip) && Convert.ToBoolean(rnd.Next(0, 2)))
+                    {
+                        interval = cmd.interval * 1000;
+                        SetText(string.Format("Skipped: {0}\nNext interval: {1} seconds", cmd.name, interval / 1000));
+                    }
+                    else
+                    {
+                        if (Convert.ToBoolean(cmd.random_skip))
+                        {
+                            SetText(string.Format("Not skipped"));
+                        }
+                        SetText(string.Format("Sending: {0}\n{1}\nNext interval: {2} seconds", cmd.name, cmd.message, interval / 1000));
+                        commandsToProcess.Add(cmd);
+                        if (Convert.ToBoolean(cmd.random_double) && Convert.ToBoolean(rnd.Next(0, 2)))
+                        {
+                            long doubleEntry = (cmd.interval - (cmd.interval > 5 ? rnd.Next(2, 6) : cmd.interval * 2)) * 1000;
+                            SetText(string.Format("Double Entry Interval: {0} seconds", doubleEntry / 1000));
+                            Thread.Sleep(Convert.ToInt32(doubleEntry));
+                            commandsToProcess.Add(cmd);
+                        }
+                    }
+                    if (isProcessing && !this.IsDisposed && process != null)
+                    {
+                        Thread.Sleep(Convert.ToInt32(interval));
+                        CommandSend(cmd);
+                    }
                 }
                 else
                 {
-                    if (Convert.ToBoolean(cmd.random_skip))
+                    if (DateTime.Now.Subtract(cmd.lastBreak).TotalMinutes >= cmd.break_minutes)
                     {
-                        SetText(string.Format("Not skipped"));
+                        cmd.lastBreak = DateTime.Now;
+                        cmd.onBreak = false;
+                        SetText(string.Format("Resume Next: {0}", cmd.name));
                     }
-                    SetText(string.Format("Sending: {0}\n{1}\nNext interval: {2} seconds", cmd.name, cmd.message, interval / 1000));
-                    commandsToProcess.Add(cmd);
-                    if (Convert.ToBoolean(cmd.random_double) && Convert.ToBoolean(rnd.Next(0, 2)))
+                    else
                     {
-                        long doubleEntry = (cmd.interval - (cmd.interval > 5 ? rnd.Next(2, 6) : cmd.interval * 2)) * 1000;
-                        SetText(string.Format("Double Entry Interval: {0} seconds", doubleEntry / 1000));
-                        Thread.Sleep(Convert.ToInt32(doubleEntry));
-                        commandsToProcess.Add(cmd);
+                        SetText(string.Format("On Break: {0}\nNext interval: {1} seconds", cmd.name, interval / 1000));
                     }
-                }
-                if (isProcessing && !this.IsDisposed && process != null)
-                {
-                    Thread.Sleep(Convert.ToInt32(interval));
-                    CommandSend(cmd);
+                    if (isProcessing && !this.IsDisposed && process != null)
+                    {
+                        Thread.Sleep(Convert.ToInt32(interval));
+                        CommandSend(cmd);
+                    }
                 }
             }
         }
@@ -342,7 +437,8 @@ namespace typoid
                     commandsToProcess = new List<Command>();
                     isProcessing = false;
                     SetText("Stopping");
-                    commands.ForEach(a => {
+                    commands.ForEach(a =>
+                    {
                         try
                         {
                             a.process.Abort();
@@ -406,7 +502,8 @@ namespace typoid
         private void frmMain_FormClosing(object sender, FormClosingEventArgs e)
         {
             isProcessing = false;
-            commands.ForEach(a => {
+            commands.ForEach(a =>
+            {
                 try
                 {
                     a.process.Abort();
@@ -416,6 +513,39 @@ namespace typoid
                     SetText(ex.Message);
                 }
             });
+        }
+
+        private void dgvCommands_CellContentClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (dgvCommands.CurrentCell.GetType() != typeof(DataGridViewCheckBoxCell))
+            {
+                return;
+            }
+            if (e.RowIndex > -1)
+            {
+                DataGridViewCheckBoxCell chk = (DataGridViewCheckBoxCell)dgvCommands.Rows[dgvCommands.CurrentRow.Index].Cells["isEnabled"];
+                var cmd = dgvCommands.Rows[e.RowIndex].DataBoundItem as Command;
+
+                if (chk.Value == null)
+                {
+                    chk.Value = true;
+                }
+                switch (chk.Value.ToString())
+                {
+                    case "True":
+                        {
+                            chk.Value = false;
+                            cmd.isEnabled = false;
+                            break;
+                        }
+                    case "False":
+                        {
+                            chk.Value = true;
+                            cmd.isEnabled = true;
+                            break;
+                        }
+                }
+            }
         }
     }
 }

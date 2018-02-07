@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -71,6 +72,28 @@ namespace typoid.Utility
             return new SQLiteConnection(Context.ConnectionString);
         }
 
+        /// <summary>
+        /// Create database by file path and name
+        /// </summary>
+        /// <param name="fileName"></param>
+        public void CreateDatabase(string fileName)
+        {
+            if (!File.Exists(fileName))
+            {
+                SQLiteConnection.CreateFile(fileName);
+            }
+        }
+
+        public long CreateTable(string query)
+        {
+            return Execute(query);
+        }
+
+        /// <summary>
+        /// To get table name
+        /// </summary>
+        /// <param name="className"></param>
+        /// <returns></returns>
         private string GetTableName(string className)
         {
             return (className[className.Length - 1].ToString().ToLower() == "y" ? string.Format("{0}ies", className.ToLower().Substring(0, className.Length - 2)) : string.Format("{0}s", className.ToLower()));
@@ -403,7 +426,7 @@ namespace typoid.Utility
         //        cmd.ExecuteNonQuery();
         //    }
         //}
-        private long Execute(string cmdText, bool returnIdentity = false)
+        public long Execute(string cmdText, bool returnIdentity = false)
         {
             using (var connection = GetConnection())
             {

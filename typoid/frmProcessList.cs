@@ -30,7 +30,7 @@ namespace typoid
 
         private void btnOk_Click(object sender, EventArgs e)
         {
-            Select();
+            SelectCommand();
         }
 
         private void btnRefresh_Click(object sender, EventArgs e)
@@ -47,10 +47,10 @@ namespace typoid
 
         private void lbOptions_MouseDoubleClick(object sender, MouseEventArgs e)
         {
-            Select();
+            SelectCommand();
         }
 
-        private void Select()
+        private void SelectCommand()
         {
             if (lbOptions.SelectedItem != null)
             {

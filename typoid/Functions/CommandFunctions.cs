@@ -32,8 +32,27 @@ namespace typoid.Functions
 
         public List<Command> GetCommands()
         {
-            CommandService svc = new CommandService();
-            return svc.GetAll().ToList();
+            return new CommandService().GetAll().ToList();
+        }
+
+        public void CreateDatabase(string fileName)
+        {
+            new CommandService().CreateDatabase(fileName);
+        }
+
+        public void CreateTable()
+        {
+            var query = @"CREATE TABLE IF NOT EXISTS `commands` (
+	            `id`	INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE,
+	            `name`	TEXT,
+	            `message`	TEXT,
+	            `interval`	INTEGER DEFAULT 0,
+	            `random_skip`	INTEGER DEFAULT 0,
+	            `random_double`	INTEGER DEFAULT 0,
+	            `threshold`	INTEGER DEFAULT 0,
+	            `break_minutes`	INTEGER DEFAULT 0
+            );";
+            new CommandService().CreateTable(query);
         }
     }
 }

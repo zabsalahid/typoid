@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -141,8 +142,19 @@ namespace typoid
         {
             if (String.IsNullOrEmpty(Storage.ConnectionString))
             {
-                Storage.ConnectionString = string.Format("Data Source={0};Version=3;", AppDomain.CurrentDomain.BaseDirectory + System.Configuration.ConfigurationManager.AppSettings["DatabaseFile"]);
-                PopulateCommands();
+                var dbFile = AppDomain.CurrentDomain.BaseDirectory + System.Configuration.ConfigurationManager.AppSettings["DatabaseFile"];
+                Storage.ConnectionString = string.Format("Data Source={0};Version=3;", dbFile);
+                if (File.Exists(dbFile))
+                {
+                    commandFunctions.CreateTable();
+                    PopulateCommands();
+                }
+                else
+                {
+                    commandFunctions.CreateDatabase(dbFile);
+                    commandFunctions.CreateTable();
+                    PopulateCommands();
+                }
             }
         }
 
@@ -338,6 +350,7 @@ namespace typoid
             }
             catch (Exception ex)
             {
+                SetText(ex.Message);
             }
             if (isProcessing && !this.IsDisposed && process != null)
             {
